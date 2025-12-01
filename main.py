@@ -2,21 +2,18 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
+from datetime import date, datetime # <--- IMPORTANTE
 
 app = FastAPI()
 
-# --- CONFIGURAÇÃO DE CORS (ESSENCIAL PARA GODOT WEB) ---
-# Isso permite que seu jogo na Web acesse essa API sem ser bloqueado pelo navegador.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Em produção, troque "*" pelo endereço do seu jogo (ex: itch.io)
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- MODELO DE DADOS ---
-# Define como é o formato do Remédio
 class HistoricoCompra(BaseModel):
     preco: float
     local: str
@@ -29,51 +26,51 @@ class Remedio(BaseModel):
     cpf_convenio: Optional[str] = ""
     historico_compras: List[HistoricoCompra] = []
     
-    # Campo calculado (não precisamos enviar, a API calcula)
+    # Novos campos para controle de tempo
+    data_inicio: Optional[str] = None # Vai salvar "2023-10-27"
     dias_restantes: Optional[int] = 0
 
-# --- BANCO DE DADOS SIMULADO ---
-remedios_db = [
-    {
-        "id": 1,
-        "nome": "Dipirona",
-        "dose_diaria": 3,
-        "doses_caixa": 30,
-        "dias_restantes": 10,
-        "cpf_convenio": "123.456.789-00",
-        "historico_compras": [
-            {"preco": 15.50, "local": "Farmacia A"},
-            {"preco": 16.00, "local": "Farmacia B"}
-        ]
-    }
-]
-
-# --- ROTAS DA API ---
-
-@app.get("/")
-def home():
-    return {"mensagem": "API de Remédios Online!"}
+remedios_db = []
 
 @app.get("/remedios")
 def listar_remedios():
+    hoje = date.today()
+    
+    for item in remedios_db:
+        # Se tivermos a data de início e a dose for maior que 0, calculamos
+        if item["data_inicio"] and item["dose_diaria"] > 0:
+            # 1. Converte a string "2023-XX-XX" de volta para Objeto Data
+            data_inicio = date.fromisoformat(item["data_inicio"])
+            
+            # 2. Quantos dias o remédio dura no total? (Ex: 30 comp / 3 por dia = 10 dias)
+            duracao_total = int(item["doses_caixa"] / item["dose_diaria"])
+            
+            # 3. Quantos dias já se passaram desde que adicionou?
+            dias_passados = (hoje - data_inicio).days
+            
+            # 4. Cálculo final
+            dias_restantes = duracao_total - dias_passados
+            item["dias_restantes"] = dias_restantes
+        else:
+            item["dias_restantes"] = 0
+            
     return remedios_db
 
 @app.post("/remedios")
 def criar_remedio(remedio: Remedio):
-    # Gera um novo ID
     novo_id = 1
     if len(remedios_db) > 0:
         novo_id = remedios_db[-1]["id"] + 1
     
     remedio.id = novo_id
     
-    # Lógica simples para calcular dias restantes
+    # SALVA A DATA DE HOJE AUTOMATICAMENTE
+    remedio.data_inicio = str(date.today())
+    
+    # Faz um cálculo inicial
     if remedio.dose_diaria > 0:
         remedio.dias_restantes = int(remedio.doses_caixa / remedio.dose_diaria)
-    else:
-        remedio.dias_restantes = 0
         
-    # Converte para dicionário e salva
     remedios_db.append(remedio.dict())
     return remedio
 
@@ -81,14 +78,12 @@ def criar_remedio(remedio: Remedio):
 def atualizar_remedio(remedio_id: int, remedio_atualizado: Remedio):
     for index, item in enumerate(remedios_db):
         if item["id"] == remedio_id:
-            # Mantém o ID original
             remedio_atualizado.id = remedio_id
             
-            # Recalcula dias
-            if remedio_atualizado.dose_diaria > 0:
-                remedio_atualizado.dias_restantes = int(remedio_atualizado.doses_caixa / remedio_atualizado.dose_diaria)
+            # Mantém a data de início original (para não resetar a contagem)
+            # A menos que você queira que editar RESETE o tempo, aí remova essa linha
+            remedio_atualizado.data_inicio = item["data_inicio"]
             
-            # Atualiza na lista
             remedios_db[index] = remedio_atualizado.dict()
             return remedio_atualizado
             
