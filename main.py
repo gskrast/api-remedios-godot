@@ -25,10 +25,10 @@ class Remedio(BaseModel):
     doses_caixa: int
     cpf_convenio: Optional[str] = ""
     historico_compras: List[HistoricoCompra] = []
-    
-    # Novos campos para controle de tempo
-    data_inicio: Optional[str] = None # Vai salvar "2023-10-27"
+    data_inicio: Optional[str] = None
     dias_restantes: Optional[int] = 0
+    # NOVO CAMPO
+    na_lista_compras: Optional[bool] = False
 
 remedios_db = []
 
@@ -61,16 +61,13 @@ def criar_remedio(remedio: Remedio):
     novo_id = 1
     if len(remedios_db) > 0:
         novo_id = remedios_db[-1]["id"] + 1
-    
     remedio.id = novo_id
-    
-    # SALVA A DATA DE HOJE AUTOMATICAMENTE
     remedio.data_inicio = str(date.today())
     
-    # Faz um cálculo inicial
+    # Se for criado já com 0 dias ou estoque baixo, já sugere ir pra lista
     if remedio.dose_diaria > 0:
         remedio.dias_restantes = int(remedio.doses_caixa / remedio.dose_diaria)
-        
+    
     remedios_db.append(remedio.dict())
     return remedio
 
