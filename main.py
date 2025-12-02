@@ -85,3 +85,12 @@ def atualizar_remedio(remedio_id: int, remedio_atualizado: Remedio):
             return remedio_atualizado
             
     raise HTTPException(status_code=404, detail="Remédio não encontrado")
+# Adicione isso no final do seu main.py
+@app.delete("/remedios/{remedio_id}")
+def deletar_remedio(remedio_id: int):
+    for index, item in enumerate(remedios_db):
+        if item["id"] == remedio_id:
+            remedios_db.pop(index) # Remove o item da lista
+            return {"mensagem": "Remédio removido com sucesso"}
+            
+    raise HTTPException(status_code=404, detail="Remédio não encontrado")
